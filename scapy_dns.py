@@ -14,9 +14,18 @@ def filter_dns(packet):
             DNS in packet and packet[DNS].opcode == 0 and \
             DNSQR in packet and (packet[DNSQR].qtype == 1 or packet[DNSQR].qtype == 12))
 
+def filter_dns_reply(packet):
+    return (DNS in packet and packet[DNS].qr == 1 and \
+            DNSQR in packet and (packet[DNSQR].qtype == 1 or packet[DNSQR].qtype == 12))
+
+def print_ip(packet):
+    print(packet[DNSRR].rdata)
+
+
 def main():
 #    while True:
     sniff(count=1, lfilter=filter_dns, prn=print_query_name)
+    sniff(count=1, lfilter=filter_dns_reply, prn=print_ip)
         
             
 if __name__ == "__main__":
