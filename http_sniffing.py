@@ -3,7 +3,7 @@ from scapy.all import *
 def filter_http(packet):
     return (TCP in packet and Raw in packet and packet[Raw].load.decode(errors= 'ignore').startswith("GET"))
 
-def print_query_name(http_packet):
+def print_url(http_packet):
     
     request = http_packet[Raw].load.decode()
     host = ''
@@ -19,7 +19,7 @@ def print_query_name(http_packet):
     print(url)
 
 def main():
-    sniff(count=1, lfilter=filter_http, prn=print_query_name)  
+    sniff(count=1, lfilter=filter_http, prn=print_url)  
             
 if __name__ == "__main__":
     main()
