@@ -21,7 +21,7 @@ def get_name_ip():
 def new_name_ip(name,ip, name_ip):
     name_ip[name] = ip
     with open(DB, 'a') as open_file:
-        open_file.write("{} {}".format(name, ip))
+        open_file.write("{} {}\n".format(name, ip))
     return name_ip
 
 def filter_dns_query(packet):
@@ -32,13 +32,14 @@ def filter_dns_query(packet):
 def get_query_name(dns_packet):
     return dns_packet[DNSQR].qname.decode(), dns_packet[DNSQR].qtype
 
-def filter_server_reply(packet, q_id):
-    return (DNS in packet and packet[DNS].opcode == 0 and packet[DNS].qr == 1 and packet[DNS].id == q_id)
+def filter_server_reply(packet):
+    return (((UDP in packet and packet[UDP].sport == 53) or (TCP in packet and packet[TCP].sport == 53)) and \
+              DNS in packet and packet[DNS].opcode == 0 and packet[DNS].qr == 1 and packet[DNS].id == query_id)
 
 def create_dns_reply(ip, dns_name, packet):
     packet_src = packet[IP].src
     packet_sport = packet[UDP].sport
-    if ip == "no such name":
+    if ip == 3:
         dns = DNS(
         id=packet[DNS].id,
         qd=packet[DNS].qd,
@@ -71,7 +72,8 @@ def create_dns_reply(ip, dns_name, packet):
     return reply_packet
 
 def create_query(name,query_type):
-    query_id =  random. randint(1,65535)
+    global query_id
+    query_id =  random. randint(10000,65535)
     dns = DNS(
     id = query_id,
     qr = 0,
@@ -94,12 +96,19 @@ def create_query(name,query_type):
         qclass = 'IN'))
     
     query_packet = IP(dst = DNS_SERVER, src = MY_IP)/UDP(sport = 60000 ,dport = 53 )/dns
-    return query_packet, query_id
+    return query_packet
 
-def get_ip(packet):
-    for field in packet:
-        if field.isinstance(DNSRR):
-            print(field.rdata)
+def get_answer_ip(packet,name_ip):
+    answer = packet[DNS].an
+    count = packet[DNS].ancount 
+    if answer != None:
+        answer = answer[count - 1]
+        ip = answer.rdata
+        name = answer.rrname.decode()
+        name_ip = new_name_ip(name,ip,name_ip)
+        return ip, name_ip
+    else:
+        return 3, name_ip
 
 def main():
     print(MY_IP)
@@ -113,14 +122,14 @@ def main():
             send(reply_packet)
             break
         else:
-            ip = 'no such name'
-            query_packet, query_id = create_query(dns_name, query_type)
+            query_packet = create_query(dns_name, query_type)
             send(query_packet)
-            server_reply = sniff(count=1, lfilter=filter_server_reply(packet,query_id))
-            get_ip(server_reply[0])
-            break
-            #send(reply_packet)
-            
+            server_reply = sniff(count=1, lfilter=filter_server_reply)
+            ip, name_ip = get_answer_ip(server_reply[0],name_ip)
+            reply_packet =create_dns_reply(ip, dns_name, packet[0])
+            send(reply_packet)
+            print(reply_packet.show())
+            break            
             
 if __name__ == "__main__":
     main()
