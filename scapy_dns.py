@@ -1,8 +1,12 @@
+from scapy.all import IP, UDP, TCP, DNS, DNSQR, DNSRR
 from scapy.all import *
+import random
+from socket import gethostbyname, gethostname
 
 FILE = r"C:\Users\yonat\Documents\Yuval\devops\networking\scapy-5\DNS_Q.txt"
 DB = r"C:\Users\yonat\Documents\Yuval\devops\networking\scapy-5\DNS_data.txt"
-MY_IP = '192.168.68.54'
+MY_IP = gethostbyname(gethostname())
+DNS_SERVER = '213.57.2.5'
 
 def get_name_ip():
     name_ip = {}
@@ -26,21 +30,14 @@ def filter_dns_query(packet):
             DNSQR in packet and (packet[DNSQR].qtype == 1 or packet[DNSQR].qtype == 12))
 
 def get_query_name(dns_packet):
-    return dns_packet[DNSQR].qname.decode()
+    return dns_packet[DNSQR].qname.decode(), dns_packet[DNSQR].qtype
 
-def get_src(packet):
-    if IP in packet:
-        return packet[IP].src
-
-def get_sport(packet):
-    if TCP in packet:
-        return packet[TCP].sport
-    if UDP in packet:
-        return packet[UDP].sport
+def filter_server_reply(packet, q_id):
+    return (DNS in packet and packet[DNS].opcode == 0 and packet[DNS].qr == 1 and packet[DNS].id == q_id)
 
 def create_dns_reply(ip, dns_name, packet):
-    query_src = get_src(packet)
-    query_sport = get_sport(packet)
+    packet_src = packet[IP].src
+    packet_sport = packet[UDP].sport
     if ip == "no such name":
         dns = DNS(
         id=packet[DNS].id,
@@ -68,18 +65,48 @@ def create_dns_reply(ip, dns_name, packet):
                 rrname=dns_name,
                 type='A',
                 ttl=600,
-                rdata=ip)
-            )
+                rdata=ip))
 
-    reply_packet = IP(dst = query_src, src = MY_IP)/UDP(sport = 53 ,dport = query_sport )/dns
-    print(reply_packet.show())
+    reply_packet = IP(dst = packet_src, src = MY_IP)/UDP(sport = 53 ,dport = packet_sport)/dns
     return reply_packet
 
+def create_query(name,query_type):
+    query_id =  random. randint(1,65535)
+    dns = DNS(
+    id = query_id,
+    qr = 0,
+    opcode = 0,
+    aa = 0,
+    tc = 0,
+    rd = 1,
+    ra = 0 , 
+    z = 0,
+    ad = 0,
+    cd = 0,
+    rcode = 'ok',
+    qdcount = 1,
+    ancount = 0,
+    nscount = 0,
+    arcount = 0,
+    qd = DNSQR(
+        qname = name,
+        qtype = query_type,
+        qclass = 'IN'))
+    
+    query_packet = IP(dst = DNS_SERVER, src = MY_IP)/UDP(sport = 60000 ,dport = 53 )/dns
+    return query_packet, query_id
+
+def get_ip(packet):
+    for field in packet:
+        if field.isinstance(DNSRR):
+            print(field.rdata)
+
 def main():
+    print(MY_IP)
     name_ip = get_name_ip()
     while True:
         packet = sniff(count=1, lfilter=filter_dns_query)
-        dns_name = get_query_name(packet[0])
+        dns_name, query_type = get_query_name(packet[0])
         if dns_name in name_ip:
             ip = name_ip[dns_name]
             reply_packet =create_dns_reply(ip, dns_name, packet[0])
@@ -87,9 +114,13 @@ def main():
             break
         else:
             ip = 'no such name'
-            reply_packet =create_dns_reply(ip, dns_name, packet[0])
-            send(reply_packet)
+            query_packet, query_id = create_query(dns_name, query_type)
+            send(query_packet)
+            server_reply = sniff(count=1, lfilter=filter_server_reply(packet,query_id))
+            get_ip(server_reply[0])
             break
+            #send(reply_packet)
+            
             
 if __name__ == "__main__":
     main()
