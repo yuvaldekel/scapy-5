@@ -1,3 +1,0 @@
-www.microsoft.com. 184.30.21.171
-www.google.com. 172.217.22.68
-ssl.gstatic.com. 172.217.22.99
