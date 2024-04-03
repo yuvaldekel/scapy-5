@@ -111,8 +111,8 @@ def find_ip(packet,name_ip,dns_name):
         answer = answer[count - 1]
         ip = answer.rdata
         expiration = str(datetime.datetime.now() + datetime.timedelta(seconds=answer.ttl))
-        name_ip = write_db(dns_name, ip, name_ip, expiration)
-        return ip, answer.ttl, name_ip
+        write_db(dns_name, ip, name_ip, expiration)
+        return ip, answer.ttl
     else:
         return None, 0
 
